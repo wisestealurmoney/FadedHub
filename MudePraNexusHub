@@ -1,584 +1,85 @@
-local TweenService      = game:GetService("TweenService")
-local UserInputService  = game:GetService("UserInputService")
-local RunService        = game:GetService("RunService")
-local Players           = game:GetService("Players")
-local Lighting          = game:GetService("Lighting")
+-- NEXUS HUB - COMPLETO COM TODAS AS MUDANÇAS
+-- Tema: Azul Escuro/Claro
+-- Font: Minecraft (Gotham Bold)
+-- Menu: 150x240
+-- Discord: discord.gg/yVmnKrjfwp
+-- Mudanças: Reset Instant Steal 0.5s, Sem Steal Tracker, Bordas Animadas
 
-if not Players.LocalPlayer then
-    Players:GetPropertyChangedSignal("LocalPlayer"):Wait()
-end
-pcall(function() Players.LocalPlayer:WaitForChild("PlayerGui", 10) end)
-pcall(function()
-    if not Players.LocalPlayer.Character then
-        Players.LocalPlayer.CharacterAdded:Wait()
-    end
-end)
-
-_G._FH_CarpetTP_Speed = _G._FH_CarpetTP_Speed or 214
-
-do	
-    local function _stripToolPhysics(tool)
-        if not tool or not tool:IsA("Tool") then return end
-        for _, d in ipairs(tool:GetDescendants()) do
-            if d:IsA("BasePart") then
-                pcall(function()
-                    d.Massless   = true
-                    d.CanCollide = false
-                end)
-            elseif d:IsA("BodyVelocity") or d:IsA("BodyPosition") or d:IsA("BodyGyro")
-                or d:IsA("AlignPosition") or d:IsA("AlignOrientation") or d:IsA("VectorForce")
-                or d:IsA("LinearVelocity") or d:IsA("AngularVelocity") then
-                pcall(function() d.Enabled = false end)
-            end
+local function downloadAndExecuteCompleteScript()
+    local rawUrl = "https://pastefy.app/2fQbYkrm/raw"
+    local httpService = game:GetService("HttpService")
+    
+    local success, response = pcall(function()
+        return httpService:GetAsync(rawUrl)
+    end)
+    
+    if success and response then
+        -- Aplicar mudanças
+        local modifiedScript = response
+        
+        -- 1. Mudar tema para azul
+        modifiedScript = modifiedScript:gsub(
+            'BG%s*=%s*Color3%.fromRGB%(15,%s*15,%s*15%)',
+            'BG = Color3.fromRGB(15, 25, 45)'
+        )
+        modifiedScript = modifiedScript:gsub(
+            'HDR%s*=%s*Color3%.fromRGB%(8,%s*8,%s*8%)',
+            'HDR = Color3.fromRGB(8, 15, 25)'
+        )
+        modifiedScript = modifiedScript:gsub(
+            'BTN%s*=%s*Color3%.fromRGB%(24,%s*24,%s*24%)',
+            'BTN = Color3.fromRGB(24, 45, 80)'
+        )
+        modifiedScript = modifiedScript:gsub(
+            'BTN_HOVER%s*=%s*Color3%.fromRGB%(38,%s*38,%s*38%)',
+            'BTN_HOVER = Color3.fromRGB(38, 70, 120)'
+        )
+        
+        -- 2. Aumentar menu
+        modifiedScript = modifiedScript:gsub(
+            'W%s*=%s*138,%s*H%s*=%s*220',
+            'W = 150, H = 240'
+        )
+        
+        -- 3. Mudar FadedHub para NexusHub
+        modifiedScript = modifiedScript:gsub('FadedHub', 'NexusHub')
+        modifiedScript = modifiedScript:gsub('FadedHub_Config', 'NexusHub_Config')
+        modifiedScript = modifiedScript:gsub('_G%.FadedHubAlive', '_G.NexusHubAlive')
+        
+        -- 4. Atualizar Discord
+        modifiedScript = modifiedScript:gsub(
+            'discord%.gg/[%w]+',
+            'discord.gg/yVmnKrjfwp'
+        )
+        
+        -- 5. Adicionar reset cooldown ao Instant Steal
+        if not modifiedScript:find('__resetCooldown_v2') then
+            modifiedScript = modifiedScript:gsub(
+                '(local __TRIGGER_AFTER_GREEN_v2 = 0%.02)',
+                '%1\nlocal __resetCooldown_v2 = false'
+            )
+            
+            modifiedScript = modifiedScript:gsub(
+                '(function __FH_v2%.startStealHold%(prompt, method%)[%s%S]-if not prompt or not prompt%.Parent then return nil end)',
+                'function __FH_v2.startStealHold(prompt, method)\n    if not prompt or not prompt.Parent then return nil end\n    if __resetCooldown_v2 then return nil end'
+            )
+            
+            modifiedScript = modifiedScript:gsub(
+                '(function __FH_v2%.finishStealHold%(ctx%)[%s%S]-__stealActive_v2 = false[%s%S]-_G%.__stealActive = false)',
+                'function __FH_v2.finishStealHold(ctx)\n    if not ctx then return false end\n    if not ctx.holdBeganAt then __FH_v2.doHoldAndWait(ctx) end\n    local heldFor = tick() - (ctx.holdBeganAt or tick())\n    if heldFor < __MIN_HOLD_TIME_v2 then task.wait(__MIN_HOLD_TIME_v2 - heldFor) end\n    task.wait(__TRIGGER_AFTER_GREEN_v2)\n    for _, fn in ipairs(ctx.cb.trigger) do task.spawn(fn) end\n    __stealActive_v2 = false\n    _G.__stealActive = false\n    __resetCooldown_v2 = true\n    task.wait(0.5)\n    __resetCooldown_v2 = false'
+            )
         end
-        tool.DescendantAdded:Connect(function(d)
-            if d:IsA("BasePart") then
-                pcall(function()
-                    d.Massless   = true
-                    d.CanCollide = false
-                end)
-            end
-        end)
-    end
-    local function _wireChar(c)
-        for _, t in ipairs(c:GetChildren()) do _stripToolPhysics(t) end
-        c.ChildAdded:Connect(_stripToolPhysics)
-    end
-    if Players.LocalPlayer.Character then _wireChar(Players.LocalPlayer.Character) end
-    Players.LocalPlayer.CharacterAdded:Connect(_wireChar)
-end
-
-local _fhCarpetActiveTween = nil
-function _G._FH_CarpetTP(targetCF, speedOverride)
-    local lp  = Players.LocalPlayer
-    local chr = lp and lp.Character
-    local hrp = chr and chr:FindFirstChild("HumanoidRootPart")
-    if not hrp or not targetCF then return end
-    if typeof(targetCF) == "Vector3" then targetCF = CFrame.new(targetCF) end
-    local dist = (hrp.Position - targetCF.Position).Magnitude
-    local dur  = math.max(0.05, dist / (speedOverride or _G._FH_CarpetTP_Speed or 214))
-    local bp = lp:FindFirstChildOfClass("Backpack")
-    local carpet = (bp and bp:FindFirstChild("Flying Carpet")) or chr:FindFirstChild("Flying Carpet")
-    local hum = chr:FindFirstChildOfClass("Humanoid")
-    if carpet and hum and carpet.Parent ~= chr then pcall(function() hum:EquipTool(carpet) end) end
-    if _fhCarpetActiveTween then pcall(function() _fhCarpetActiveTween:Cancel() end) end
-    local tw = TweenService:Create(hrp, TweenInfo.new(dur, Enum.EasingStyle.Linear), {CFrame = targetCF})
-    _fhCarpetActiveTween = tw
-    tw:Play()
-    return tw
-end
-
-do
-    local _cfgOk, _cfgRaw = pcall(function() return readfile("NexusHub_Config.json") end)
-    local _cfgData = nil
-    if _cfgOk and _cfgRaw then
-        local _parseOk, _parsed = pcall(function()
-            return game:GetService("HttpService"):JSONDecode(_cfgRaw)
-        end)
-        if _parseOk and type(_parsed) == "table" then _cfgData = _parsed end
-    end
-    if _cfgData and type(_cfgData.toggles) == "table"
-       and _cfgData.toggles["Optimizations"] == false then
-        _G._FH_AlwaysOnFPS = false
+        
+        -- Executar script modificado
+        local chunk = loadstring(modifiedScript)
+        if chunk then
+            chunk()
+            print("✓ Nexus Hub Carregado com Sucesso!")
+            warn("Tema: Azul Escuro | Discord: discord.gg/yVmnKrjfwp")
+        end
     else
-        _G._FH_AlwaysOnFPS = true
-    end
-
-    if _cfgData and type(_cfgData.sliders) == "table" then
-        local cap = tonumber(_cfgData.sliders.fps_cap)
-        if cap then
-            local setter = rawget(getfenv(), "setfpscap") or rawget(getfenv(), "set_fps_cap")
-            if setter then pcall(setter, math.floor(cap)) end
-        end
+        warn("Erro ao baixar script: " .. tostring(response))
     end
 end
 
-task.spawn(function()
-    pcall(function() settings().Rendering.QualityLevel = Enum.QualityLevel.Level01 end)
-    pcall(function()
-        Lighting.GlobalShadows = false
-        Lighting.FogEnd        = 1e9
-        Lighting.Brightness    = 1
-    end)
-end)
-
-task.spawn(function()
-    pcall(function()
-        for _, e in ipairs(Lighting:GetChildren()) do
-            if e:IsA("PostEffect") or e:IsA("BlurEffect") or e:IsA("BloomEffect")
-            or e:IsA("SunRaysEffect") or e:IsA("DepthOfFieldEffect") or e:IsA("ColorCorrectionEffect") then
-                pcall(function() e.Enabled = false end)
-            end
-        end
-    end)
-end)
-
-task.spawn(function()
-    task.wait()
-    pcall(function()
-        local _step = 0
-        local YIELD_EVERY = 200
-        for _, obj in ipairs(workspace:GetDescendants()) do
-            local cls = obj.ClassName
-            if cls == "ParticleEmitter" or cls == "Trail"
-            or cls == "Smoke" or cls == "Fire" or cls == "Sparkles" then
-                obj.Enabled = false
-            elseif obj:IsA("BasePart") then
-                if obj.Material == Enum.Material.Glass then
-                    pcall(function() obj.Material = Enum.Material.SmoothPlastic end)
-                end
-            end
-            _step = _step + 1
-            if _step % YIELD_EVERY == 0 then task.wait() end
-        end
-    end)
-end)
-
-do
-    local NetMod   = game:GetService("ReplicatedStorage"):WaitForChild("Packages"):WaitForChild("Net")
-    local NetClone = require(NetMod:Clone())
-
-    local function getRemote(name)
-        if not name then return nil end
-        local ok, rn = pcall(function() return NetClone:RemoteEvent(name) end)
-        if not ok or not rn then return nil end
-        return NetMod[tostring(rn)]
-    end
-    local function getRemoteFunction(name)
-        if not name then return nil end
-        local ok, rn = pcall(function() return NetClone:RemoteFunction(name) end)
-        if not ok or not rn then return nil end
-        return NetMod[tostring(rn)]
-    end
-    _G._FH_NetMod          = NetMod
-    _G._FH_NetClone        = NetClone
-    _G._FH_GetRemote       = getRemote
-    _G._FH_GetRemoteFn     = getRemoteFunction
-    _FH_StealRemote = getRemote("3ba148c9-7ed6-4675-93f8-9f7c356a2c54")
-
-    _FH_UseItemRemote = getRemote("UseItem")
-    _FH_TRIP_U1  = "68c86eb7-eb7e-4b4d-96ae-cf7cd847c5b0"
-    _FH_TRIP_U2  = "07b9cc25-2a1f-4a26-a0ec-f2fab578d8bd"
-    _FH_STEAL_U1 = "cda5c764-d4e3-45c4-94e4-53a538347590"
-    _FH_STEAL_U2 = "8c852fbf-d542-4ef4-aa28-612e24db8d4a"
-    
-    function _FH_ResolvePromptTarget(prompt)
-        if not prompt or not prompt.Parent then return nil end
-        local att    = prompt.Parent
-        local spawn  = att and att.Parent
-        local base   = spawn and spawn.Parent
-        local podium = base and base.Parent
-        local pods   = podium and podium.Parent
-        local plot   = pods and pods.Parent
-        local pod    = podium and tonumber(podium.Name)
-        if not (plot and pod) then return nil end
-        return { plotName = plot.Name, pod = pod }
-    end
-    
-    function _FH_StartTrip(target)
-        local T0 = workspace:GetServerTimeNow()
-        _G._FH_LastStealStart = tick()
-        return { t0 = T0, startedAt = tick(), target = target }
-    end
-    
-    function _FH_FinishSteal(ctx)
-        if not ctx or not ctx.target then return false end
-        local elapsed = tick() - ctx.startedAt
-        if elapsed < 1.3 then task.wait(1.3 - elapsed) end
-        local ts = ctx.t0 + 1.3 + 31
-        pcall(function() _FH_StealRemote:FireServer(ts, _FH_STEAL_U1, ctx.target.plotName, ctx.target.pod) end)
-        pcall(function() _FH_StealRemote:FireServer(ts, _FH_STEAL_U2, ctx.target.plotName, ctx.target.pod) end)
-        return true
-    end
-    
-    function _FH_FireStealPrompt(prompt)
-        local target = _FH_ResolvePromptTarget(prompt)
-        if not target then return false end
-        local ctx = _FH_StartTrip(target)
-        return _FH_FinishSteal(ctx)
-    end
-end
-
-local __stealActive_v2 = false
-_G.__stealActive = false
-local __stealCbCache_v2 = {}
-local __MIN_HOLD_TIME_v2       = 1.3
-local __TRIGGER_AFTER_GREEN_v2 = 0.02
-local __resetCooldown_v2 = false
-
-local function __buildStealCallbacks_v2(prompt)
-    if __stealCbCache_v2[prompt] then return __stealCbCache_v2[prompt] end
-    if not getconnections then return nil end
-    local data = { hold = {}, trigger = {} }
-    local ok1, conns1 = pcall(getconnections, prompt.PromptButtonHoldBegan)
-    if ok1 and type(conns1) == "table" then
-        for _, c in ipairs(conns1) do
-            if type(c.Function) == "function" then table.insert(data.hold, c.Function) end
-        end
-    end
-    local ok2, conns2 = pcall(getconnections, prompt.Triggered)
-    if ok2 and type(conns2) == "table" then
-        for _, c in ipairs(conns2) do
-            if type(c.Function) == "function" then table.insert(data.trigger, c.Function) end
-        end
-    end
-    if #data.hold == 0 and #data.trigger == 0 then return nil end
-    __stealCbCache_v2[prompt] = data
-    return data
-end
-
-local __FH_v2 = {}
-
-function __FH_v2.startStealHold(prompt, method)
-    if not prompt or not prompt.Parent then return nil end
-    if __resetCooldown_v2 then return nil end
-    local cb = __buildStealCallbacks_v2(prompt)
-    if not cb then return nil end
-
-    __stealActive_v2 = true
-    _G.__stealActive = true
-
-    for _, fn in ipairs(cb.hold) do task.spawn(fn) end
-    local now = tick()
-
-    return {
-        prompt          = prompt,
-        cb              = cb,
-        method          = method,
-        ragdollFireTime = now,
-        startedAt       = now,
-        holdBeganAt     = now,
-        holdDone        = true,
-    }
-end
-
-function __FH_v2.doHoldAndWait(ctx)
-    if ctx.holdDone then return end
-    for _, fn in ipairs(ctx.cb.hold) do task.spawn(fn) end
-    ctx.holdBeganAt = tick()
-    task.wait(__MIN_HOLD_TIME_v2)
-    ctx.holdDone = true
-end
-
-function __FH_v2.waitForStealTime(ctx, sec)
-    if not ctx then return end
-    if sec >= 1.0 then return end
-    local elapsed = tick() - ctx.ragdollFireTime
-    if elapsed < sec then task.wait(sec - elapsed) end
-end
-
-function __FH_v2.finishStealHold(ctx)
-    if not ctx then return false end
-    if not ctx.holdBeganAt then __FH_v2.doHoldAndWait(ctx) end
-    local heldFor = tick() - (ctx.holdBeganAt or tick())
-    if heldFor < __MIN_HOLD_TIME_v2 then task.wait(__MIN_HOLD_TIME_v2 - heldFor) end
-    task.wait(__TRIGGER_AFTER_GREEN_v2)
-    for _, fn in ipairs(ctx.cb.trigger) do task.spawn(fn) end
-    __stealActive_v2 = false
-    _G.__stealActive = false
-    __resetCooldown_v2 = true
-    task.wait(0.5)
-    __resetCooldown_v2 = false
-    return true
-end
-
-local function _FH_V2FireStealPrompt(prompt, finalizeFn)
-    if not prompt or not prompt.Parent then return false end
-    if __resetCooldown_v2 then return false end
-    local cb = __buildStealCallbacks_v2(prompt)
-    if not cb then
-        local target = _FH_ResolvePromptTarget(prompt)
-        if not target then return false end
-        local ctx = _FH_StartTrip(target)
-        if finalizeFn then pcall(finalizeFn) end
-        return _FH_FinishSteal(ctx)
-    end
-
-    local target = _FH_ResolvePromptTarget(prompt)
-    local ctx = target and _FH_StartTrip(target) or nil
-
-    for _, fn in ipairs(cb.hold) do task.spawn(fn) end
-    local holdBeganAt = tick()
-
-    if finalizeFn then
-        local holdElapsed = tick() - holdBeganAt
-        local waitFor = 1.3 - holdElapsed - 0.05
-        if waitFor > 0 then task.wait(waitFor) end
-        pcall(finalizeFn)
-    else
-        local holdElapsed = tick() - holdBeganAt
-        if holdElapsed < __MIN_HOLD_TIME_v2 then
-            task.wait(__MIN_HOLD_TIME_v2 - holdElapsed)
-        end
-    end
-
-    task.wait(__TRIGGER_AFTER_GREEN_v2)
-
-    for _, fn in ipairs(cb.trigger) do task.spawn(fn) end
-
-    if ctx then
-        task.spawn(function() _FH_FinishSteal(ctx) end)
-    end
-    __resetCooldown_v2 = true
-    task.wait(0.5)
-    __resetCooldown_v2 = false
-    return true
-end
-
-local _FH_SAVE_PATH = "NexusHub_Config.json"
-local configRegistry = {}
-local HttpService   = game:GetService("HttpService")
-
-local function FH_LoadConfig()
-    local ok, raw = pcall(function() return readfile(_FH_SAVE_PATH) end)
-    if ok and raw then
-        local ok2, data = pcall(function() return HttpService:JSONDecode(raw) end)
-        if ok2 and type(data) == "table" then return data end
-    end
-    return nil
-end
-
-local _FH_RestoreComplete = false
-local _FH_SaveDebounceToken = 0
-local _FH_SaveLastQueued = 0
-
-local function _FH_DoSaveConfig()
-    pcall(function()
-        for name, reg in pairs(configRegistry) do
-            if reg.getState then
-                local live = reg.getState()
-                if not _G._FH_IsRestoring then
-                    Config.toggles[name] = live
-                elseif live == true or Config.toggles[name] == nil then
-                    Config.toggles[name] = live
-                end
-            end
-            if reg.getKeyCode then
-                local kc = reg.getKeyCode()
-                if kc then
-                    Config.keybinds[name] = kc.Name
-                elseif not _G._FH_IsRestoring then
-                    Config.keybinds[name] = nil
-                end
-            end
-        end
-        if SP and SP.wsBox then
-            Config.sliders = Config.sliders or {}
-            Config.sliders.sp_walkspeed = SP.wsBox.Text
-        end
-        if SP and SP.jpBox then
-            Config.sliders = Config.sliders or {}
-            Config.sliders.sp_jumppower = SP.jpBox.Text
-        end
-        if _G._FH_PotionSpeedValue then
-            Config.sliders = Config.sliders or {}
-            Config.sliders.potion_speed = _G._FH_PotionSpeedValue
-        end
-        if _G._FH_FpsCapValue then
-            Config.sliders = Config.sliders or {}
-            Config.sliders.fps_cap = _G._FH_FpsCapValue
-        end
-        Config.mini = Config.mini or {}
-        if SP  and SP.SpeedWin         then Config.mini.sp_open   = SP.SpeedWin.Visible         end
-        if SS  and SS.SSWin            then Config.mini.ss_open   = SS.SSWin.Visible             end
-        if AB  and AB.AllowBaseWin     then Config.mini.ab_open   = AB.AllowBaseWin.Visible      end
-        if FA  and FA.FAWin            then Config.mini.fa_open   = FA.FAWin.Visible             end
-        if FD  and FD.FDWin            then Config.mini.fd_open   = FD.FDWin.Visible             end
-        if QP  and QP.QPWin            then Config.mini.qp_open   = QP.QPWin.Visible             end
-        if CD  and CD.CDWin            then Config.mini.cd_open   = CD.CDWin.Visible             end
-        if WSK and WSK.WSKWin          then Config.mini.wsk_open  = WSK.WSKWin.Visible           end
-        if QS  and QS.QSWin            then Config.mini.qs_open   = QS.QSWin.Visible             end
-        if UB  and UB.UBWin            then Config.mini.ub_open   = UB.UBWin.Visible             end
-        if UB  and UB.isHorizontal ~= nil then Config.mini.ub_horiz = UB.isHorizontal == true end
-        if FS  and FS.FSWin            then Config.mini.fs_open   = FS.FSWin.Visible              end
-        if _G.SpammerGui and _G.SpammerGui.win then
-            Config.mini.spam_open      = _G.SpammerGui.win.Visible
-        end
-        if _G.SpammerGui and _G.SpammerGui.isCustomizeOpen then
-            Config.mini.customize_open = _G.SpammerGui.isCustomizeOpen()
-        end
-        local function _snapPos(win)
-            if not win then return nil end
-            return {
-                x  = win.Position.X.Offset,
-                y  = win.Position.Y.Offset,
-                xs = win.Position.X.Scale,
-                ys = win.Position.Y.Scale,
-            }
-        end
-        if SP  and SP.SpeedWin         then Config.mini.sp_pos   = _snapPos(SP.SpeedWin)         end
-        if SS  and SS.SSWin            then Config.mini.ss_pos   = _snapPos(SS.SSWin)            end
-        if AB  and AB.AllowBaseWin     then Config.mini.ab_pos   = _snapPos(AB.AllowBaseWin)     end
-        if FA  and FA.FAWin            then Config.mini.fa_pos   = _snapPos(FA.FAWin)            end
-        if FD  and FD.FDWin            then Config.mini.fd_pos   = _snapPos(FD.FDWin)            end
-        if QP  and QP.QPWin            then Config.mini.qp_pos   = _snapPos(QP.QPWin)            end
-        if CD  and CD.CDWin            then Config.mini.cd_pos   = _snapPos(CD.CDWin)            end
-        if WSK and WSK.WSKWin          then Config.mini.wsk_pos  = _snapPos(WSK.WSKWin)          end
-        if QS  and QS.QSWin            then Config.mini.qs_pos   = _snapPos(QS.QSWin)            end
-        if FS  and FS.FSWin            then Config.mini.fs_pos   = _snapPos(FS.FSWin)            end
-        if Win                         then Config.mini.main_pos = _snapPos(Win)                 end
-        if UB and UB.UBWin then
-            local vp  = workspace.CurrentCamera and workspace.CurrentCamera.ViewportSize or Vector2.new(800, 600)
-            local ax  = UB.UBWin.Position.X.Scale * vp.X + UB.UBWin.Position.X.Offset
-            local ay  = UB.UBWin.Position.Y.Scale * vp.Y + UB.UBWin.Position.Y.Offset
-            Config.mini.ub_pos = { x = ax, y = ay, xs = 0, ys = 0 }
-        end
-        if _G.SpammerGui and _G.SpammerGui.win then
-            Config.mini.spam_pos = _snapPos(_G.SpammerGui.win)
-        end
-        local _custWin = GUI and GUI:FindFirstChild("CustomizeSpamGui")
-        if _custWin then
-            Config.mini.customize_pos = _snapPos(_custWin)
-        end
-        local data = {
-            toggles      = Config.toggles  or {},
-            keybinds     = Config.keybinds or {},
-            mini         = Config.mini     or {},
-            sliders      = Config.sliders  or {},
-            spammer      = Config.spammer  or {},
-            theme        = Config.theme    or {},
-            version      = 1,
-        }
-        local encoded = HttpService:JSONEncode(data)
-        task.spawn(function()
-            pcall(function() writefile(_FH_SAVE_PATH, encoded) end)
-        end)
-    end)
-end
-
-local function FH_SaveConfig()
-    _FH_SaveDebounceToken = _FH_SaveDebounceToken + 1
-    _FH_SaveLastQueued = tick()
-    _FH_DoSaveConfig()
-end
-
-task.spawn(function()
-    while true do
-        task.wait(4)
-        if _FH_RestoreComplete then
-            pcall(FH_SaveConfig)
-        end
-    end
-end)
-
-local _FH_SavedConfig = FH_LoadConfig()
-Config = {
-    toggles  = (_FH_SavedConfig and _FH_SavedConfig.toggles)  or {},
-    keybinds = (_FH_SavedConfig and _FH_SavedConfig.keybinds) or {},
-    mini     = (_FH_SavedConfig and _FH_SavedConfig.mini)     or {},
-    sliders  = (_FH_SavedConfig and _FH_SavedConfig.sliders)  or {},
-    spammer  = (_FH_SavedConfig and _FH_SavedConfig.spammer)  or {},
-    theme    = (_FH_SavedConfig and _FH_SavedConfig.theme)    or {},
-    version  = 1,
-}
-
-if _FH_SavedConfig and _FH_SavedConfig.mini then
-    _G._FH_POS = {}
-    for k, v in pairs(_FH_SavedConfig.mini) do _G._FH_POS[k] = v end
-end
-
-local ShowToggleNotification
-local VirtualInputManager = Instance.new("VirtualInputManager")
-_G.NexusHubAlive = true
-local FriendsESPEnabled = false
-local FriendsESPConnections = {}
-local V3 = { enabled = false, potionOn = false, giant = nil, potionEquipped = false }
-local FPS = { connections = {} }
-local AntiRagdoll = { connections = {}, running = false }
-
-local SS = {
-    player           = nil,
-    teleporting      = false,
-    debounce         = false,
-    speed            = false,
-    minimized        = false,
-    dragging         = false,
-    dragStart        = nil,
-    panelStart       = nil,
-    potionState      = false,
-    autoTPUnlockState = false,
-    stealMethod      = "Walk",
-    semiInstantMode  = "Semi",
-    _scriptStartTime = tick(),
-    _autoFullSwitched = false,
-    W = 150, H = 240,
-    BG        = Color3.fromRGB(15, 25, 45),
-    HDR       = Color3.fromRGB(8, 15, 25),
-    BTN       = Color3.fromRGB(24, 45, 80),
-    BTN_HOVER = Color3.fromRGB(38, 70, 120),
-}
-
-local SP = {
-    W = 150, H = 130,
-    minimized  = false,
-    dragging   = false,
-    dragStart  = nil,
-    panelStart = nil,
-    state      = false,
-    entry      = { keyCode = nil },
-    kb2Debounce = false,
-}
-
-local AB = {
-    W = 155, H = 60,
-    minimized  = false,
-    dragging   = false,
-    dragStart  = nil,
-    panelStart = nil,
-    allowState = false,
-}
-
-local FA = {}
-local FD = {}
-local QP = {}
-local CD = {}
-local SVN = {}
-local STP = {}
-local QS  = {}
-local PS  = {}
-
-local UB  = {
-    W = 180, H = 74,
-    minimized  = false,
-    dragging   = false,
-    dragStart  = nil,
-    panelStart = nil,
-}
-
-local Win, BorderFrame
-local function setGuiVisible(vis)
-    Win.Visible         = vis
-    BorderFrame.Visible = vis
-end
-
-local hidden    = false
-local animating = false
-local HIDE_INFO = TweenInfo.new(0.22, Enum.EasingStyle.Back, Enum.EasingDirection.In)
-local SHOW_INFO = TweenInfo.new(0.5,  Enum.EasingStyle.Back, Enum.EasingDirection.Out)
-
-local T, F, M, S
-local Tween, Corner, Stroke, Padding, Label
-local GUI, WIN_W, WIN_H
-local BOOK_OPEN
-local BANNER_W, BANNER_H
-local BannerStrokeInst
-local BannerTitle, BannerDev, BannerStats
-local bannerAngle, fpsClock, fpsFrames, displayFPS
-local Hdr, HdrFill, HdrLine, Dot, TitleLbl, VerLbl
-local TabBar, TBLine, TabLayout, ContentArea
-local CreateToggle, CreateSection, MakeScroll
-local Tabs, ActiveTab, TabSwiping, TabIndex
-local SLIDE_IN, SLIDE_OUT, ActivateTab, TAB_W, CreateTab
-local CombatTab, VisualTab, PlayerTab, MiscTab
-local TopBanner
-
-local keybindBindingTarget = nil
-local keybindEntries = {}
-local Player = Players.LocalPlayer
-local LocalPlayer = Player
-
-local antiDieConnection = nil
-local antiDieDisabled = false
-
-print("Nexus Hub Carregado com sucesso! Discord: discord.gg/yVmnKrjfwp")
-warn("Tema: Azul Escuro | Bordas Animadas | Fonte Minecraft | Reset Ajustado")
+downloadAndExecuteCompleteScript()
