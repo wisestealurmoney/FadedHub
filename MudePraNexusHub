@@ -47,6 +47,7 @@ do
     if Players.LocalPlayer.Character then _wireChar(Players.LocalPlayer.Character) end
     Players.LocalPlayer.CharacterAdded:Connect(_wireChar)
 end
+
 local _fhCarpetActiveTween = nil
 function _G._FH_CarpetTP(targetCF, speedOverride)
     local lp  = Players.LocalPlayer
@@ -100,445 +101,6 @@ task.spawn(function()
         Lighting.Brightness    = 1
     end)
 end)
-local function _buildMiniPetsSection(
-    Config, T, isMobile, Corner, Stroke, Label, Tween, F,
-    MiscTab, Players, configRegistry, ShowToggleNotification,
-    _buildMakeAnimalCard, ANIMAL_LIST,
-    _FH_AddThemeStroke, CreateToggle, GUI, FH_SaveConfig, _FH_BuildThemeSequence
-)
-    Config.sliders = Config.sliders or {}
-    Config.toggles = Config.toggles or {}
-
-    local selectedItem = tostring(Config.sliders.hide_gui_item or "")
-    local toggleName   = "Hide GUI On Equip"
-    local enabled      = Config.toggles[toggleName] == true
-
-    local cardH = isMobile and 110 or 88
-    local card = Instance.new("Frame")
-    card.Size                   = UDim2.new(1, -16, 0, cardH)
-    card.BackgroundColor3       = T.Card
-    card.BackgroundTransparency = 0.15
-    card.BorderSizePixel        = 0
-    card.Parent                 = MiscTab.scroll
-    Corner(card, 8)
-    local cStroke = Stroke(card, Color3.fromRGB(255, 255, 255), 1)
-    _FH_AddThemeStroke(cStroke)
-
-    local bar = Instance.new("Frame")
-    bar.Size             = UDim2.new(0, 3, 0, cardH - 16)
-    bar.Position         = UDim2.new(0, 0, 0, 8)
-    bar.BackgroundColor3 = T.TrackOff
-    bar.BorderSizePixel  = 0
-    bar.ZIndex           = 2
-    bar.Parent           = card
-    Corner(bar, 2)
-
-    local nameLbl = Label(card, "Hide GUI Item", isMobile and 11 or 13, T.White, Enum.Font.GothamMedium)
-    nameLbl.Size         = UDim2.new(1, -28, 0, 16)
-    nameLbl.Position     = UDim2.new(0, 14, 0, 8)
-    nameLbl.ZIndex       = 2
-
-    local descLbl = Label(card, "Hides entire GUI while this item is equipped; restores on unequip", isMobile and 9 or 11, T.Dim, Enum.Font.Gotham)
-    descLbl.Size         = UDim2.new(1, -28, 0, 14)
-    descLbl.Position     = UDim2.new(0, 14, 0, 26)
-    descLbl.ZIndex       = 2
-    descLbl.TextTruncate = Enum.TextTruncate.AtEnd
-
-    local ddBtn = Instance.new("TextButton")
-    ddBtn.Size             = UDim2.new(1, -28, 0, 28)
-    ddBtn.Position         = UDim2.new(0, 14, 1, -36)
-    ddBtn.BackgroundColor3 = T.Card
-    ddBtn.BorderSizePixel  = 0
-    ddBtn.AutoButtonColor  = false
-    ddBtn.Text             = (selectedItem ~= "" and selectedItem) or "▼  Click to select item"
-    ddBtn.TextSize         = isMobile and 10 or 11
-    ddBtn.Font             = Enum.Font.GothamBold
-    ddBtn.TextColor3       = T.White
-    ddBtn.ZIndex           = 3
-    ddBtn.Parent           = card
-    Corner(ddBtn, 6)
-    Stroke(ddBtn, T.Border, 1)
-
-    local popup = Instance.new("Frame")
-    popup.Size                   = UDim2.new(0, 240, 0, 200)
-    popup.BackgroundColor3       = T.Card
-    popup.BackgroundTransparency = 0
-    popup.BorderSizePixel        = 0
-    popup.Visible                = false
-    popup.ZIndex                 = 200
-    popup.Parent                 = GUI
-    Corner(popup, 8)
-    Stroke(popup, T.Border, 1)
-
-    local popupScroll = Instance.new("ScrollingFrame")
-    popupScroll.Size                   = UDim2.new(1, -8, 1, -8)
-    popupScroll.Position               = UDim2.new(0, 4, 0, 4)
-    popupScroll.BackgroundTransparency = 1
-    popupScroll.BorderSizePixel        = 0
-    popupScroll.ScrollBarThickness     = 4
-    popupScroll.CanvasSize             = UDim2.new(0, 0, 0, 0)
-    popupScroll.ZIndex                 = 201
-    popupScroll.Parent                 = popup
-
-    local listLayout = Instance.new("UIListLayout")
-    listLayout.Padding   = UDim.new(0, 2)
-    listLayout.SortOrder = Enum.SortOrder.LayoutOrder
-    listLayout.Parent    = popupScroll
-
-    local function makeItemBtn(toolName)
-        local b = Instance.new("TextButton")
-        b.Size                   = UDim2.new(1, -4, 0, 24)
-        b.BackgroundColor3       = T.Card
-        b.BackgroundTransparency = 0.4
-        b.BorderSizePixel        = 0
-        b.Text                   = toolName
-        b.TextSize               = isMobile and 10 or 11
-        b.Font                   = Enum.Font.Gotham
-        b.TextColor3             = T.White
-        b.AutoButtonColor        = true
-        b.ZIndex                 = 202
-        b.Parent                 = popupScroll
-        Corner(b, 4)
-        b.MouseButton1Click:Connect(function()
-            selectedItem = toolName
-            ddBtn.Text   = toolName
-            Config.sliders.hide_gui_item = toolName
-            pcall(FH_SaveConfig)
-            popup.Visible = false
-        end)
-        return b
-    end
-
-    local function refreshList()
-        for _, c in ipairs(popupScroll:GetChildren()) do
-            if c:IsA("TextButton") then c:Destroy() end
-        end
-        local seen = {}
-        local lp = Players and Players.LocalPlayer
-        if lp then
-            local bp = lp:FindFirstChild("Backpack")
-            if bp then
-                for _, t in ipairs(bp:GetChildren()) do
-                    if t:IsA("Tool") and not seen[t.Name] then
-                        seen[t.Name] = true
-                        makeItemBtn(t.Name)
-                    end
-                end
-            end
-            local ch = lp.Character
-            if ch then
-                for _, t in ipairs(ch:GetChildren()) do
-                    if t:IsA("Tool") and not seen[t.Name] then
-                        seen[t.Name] = true
-                        makeItemBtn(t.Name)
-                    end
-                end
-            end
-        end
-        if next(seen) == nil then
-            local empty = Instance.new("TextLabel")
-            empty.Size                   = UDim2.new(1, -4, 0, 24)
-            empty.BackgroundTransparency = 1
-            empty.Text                   = "No tools in Backpack or equipped"
-            empty.TextSize               = isMobile and 10 or 11
-            empty.Font                   = Enum.Font.Gotham
-            empty.TextColor3             = T.Dim
-            empty.ZIndex                 = 202
-            empty.Parent                 = popupScroll
-        end
-        popupScroll.CanvasSize = UDim2.new(0, 0, 0, listLayout.AbsoluteContentSize.Y + 4)
-    end
-
-    ddBtn.MouseButton1Click:Connect(function()
-        if popup.Visible then popup.Visible = false return end
-        refreshList()
-        local abs = ddBtn.AbsolutePosition
-        local sz  = ddBtn.AbsoluteSize
-        local viewport = workspace.CurrentCamera and workspace.CurrentCamera.ViewportSize or Vector2.new(800, 600)
-        local px = math.min(abs.X, viewport.X - 240 - 8)
-        local py = math.min(abs.Y + sz.Y + 4, viewport.Y - 200 - 8)
-        popup.Position = UDim2.new(0, math.max(8, px), 0, math.max(8, py))
-        popup.Visible  = true
-    end)
-
-    local function isSelectedEquipped()
-        if selectedItem == "" then return false end
-        local lp = Players and Players.LocalPlayer
-        local ch = lp and lp.Character
-        if not ch then return false end
-        for _, t in ipairs(ch:GetChildren()) do
-            if t:IsA("Tool") and t.Name == selectedItem then return true end
-        end
-        return false
-    end
-
-    local _HIDE_GUI_ESP_NAMES = {
-        "Player ESP",
-        "Base ESP", "Timer ESP", "Allowed ESP",
-        "Clone ESP", "Brainrot ESP",
-    }
-    local _espStateBeforeHide = {}
-    local _espCurrentlyHidden = false
-
-    local function disableAllESPs()
-        if _espCurrentlyHidden then return end
-        _espCurrentlyHidden = true
-        _espStateBeforeHide = {}
-        for _, espName in ipairs(_HIDE_GUI_ESP_NAMES) do
-            local reg = configRegistry[espName]
-            if reg and reg.getState and reg.getState() == true then
-                _espStateBeforeHide[espName] = true
-                pcall(function()
-                    if reg.setEnabled then reg.setEnabled(false)
-                    elseif reg.doToggle then reg.doToggle() end
-                end)
-            end
-        end
-    end
-
-    local function restoreAllESPs()
-        if not _espCurrentlyHidden then return end
-        _espCurrentlyHidden = false
-        for _, espName in ipairs(_HIDE_GUI_ESP_NAMES) do
-            if _espStateBeforeHide[espName] then
-                local reg = configRegistry[espName]
-                if reg then
-                    pcall(function()
-                        if reg.setEnabled then reg.setEnabled(true)
-                        elseif reg.doToggle then reg.doToggle() end
-                    end)
-                end
-            end
-        end
-        _espStateBeforeHide = {}
-    end
-
-    local _petWasHidden = false
-
-    local function hideMiniPets()
-        if _petWasHidden then return end
-        _petWasHidden = true
-        pcall(function()
-            for _, obj in ipairs(workspace:GetChildren()) do
-                if obj:IsA("Model") and obj.Name:sub(1, 4) == "MBF_" then
-                    for _, part in ipairs(obj:GetDescendants()) do
-                        if part:IsA("BasePart") then
-                            part.LocalTransparencyModifier = 1
-                        end
-                    end
-                end
-            end
-        end)
-    end
-
-    local function showMiniPets()
-        if not _petWasHidden then return end
-        _petWasHidden = false
-        pcall(function()
-            for _, obj in ipairs(workspace:GetChildren()) do
-                if obj:IsA("Model") and obj.Name:sub(1, 4) == "MBF_" then
-                    for _, part in ipairs(obj:GetDescendants()) do
-                        if part:IsA("BasePart") then
-                            part.LocalTransparencyModifier = 0
-                        end
-                    end
-                end
-            end
-        end)
-    end
-
-    local _progBarGui = nil
-    local _progBarFill = nil
-    local _progBarWasHidden = false
-
-    local function _findProgressBarGui()
-        if _progBarGui and _progBarGui.Parent then return _progBarGui end
-
-        local cg = game:GetService("CoreGui")
-        _progBarGui = cg:FindFirstChild("FH_AutoGrabProgress")
-        if not _progBarGui then
-            local pg = Players.LocalPlayer:FindFirstChild("PlayerGui")
-            _progBarGui = pg and pg:FindFirstChild("FH_AutoGrabProgress")
-        end
-        if _progBarGui and not _progBarFill then
-
-            local frame = _progBarGui:FindFirstChildOfClass("Frame")
-            if frame then
-                local track = frame:FindFirstChild("Frame")
-
-                for _, d in ipairs(frame:GetDescendants()) do
-                    if d:IsA("Frame") and d.Name ~= "Frame" and d.Parent
-                    and d.Parent:IsA("Frame") then
-                        _progBarFill = d
-                        break
-                    end
-                end
-
-                if not _progBarFill then
-                    local inner = frame:FindFirstChildOfClass("Frame")
-                    if inner then
-                        _progBarFill = inner:FindFirstChildOfClass("Frame")
-                    end
-                end
-            end
-
-            if _progBarFill then
-                local function _syncProgBarTheme()
-                    pcall(function()
-                        if not (_progBarFill and _progBarFill.Parent) then return end
-                        local g = _progBarFill:FindFirstChildOfClass("UIGradient")
-                        if not g then
-                            g = Instance.new("UIGradient")
-                            g.Parent = _progBarFill
-                        end
-                        if _FH_BuildThemeSequence then
-                            g.Color = _FH_BuildThemeSequence()
-                        end
-
-                        _progBarFill.BackgroundColor3 = _G._FH_AccentA or Color3.fromRGB(60, 210, 100)
-                    end)
-                end
-
-                _syncProgBarTheme()
-
-                _G._FH_ThemeCallbacks = _G._FH_ThemeCallbacks or {}
-                table.insert(_G._FH_ThemeCallbacks, _syncProgBarTheme)
-            end
-        end
-        return _progBarGui
-    end
-
-    local function hideProgressBar()
-        if _progBarWasHidden then return end
-        _progBarWasHidden = true
-
-        _G._FH_HideAutoGrabBar = true
-        pcall(function()
-            local gui = _findProgressBarGui()
-            if gui then gui.Enabled = false end
-        end)
-    end
-
-    local function showProgressBar()
-        if not _progBarWasHidden then return end
-        _progBarWasHidden = false
-
-        local reg = configRegistry["Hide Progress Bar"]
-        _G._FH_HideAutoGrabBar = (reg and reg.getState and reg.getState()) or false
-        pcall(function()
-            if not _G._FH_HideAutoGrabBar then
-                local gui = _findProgressBarGui()
-                if gui then gui.Enabled = true end
-            end
-        end)
-    end
-
-    task.defer(_findProgressBarGui)
-
-    do
-        local function _fixAutoGrabBarTheme()
-            pcall(function()
-                local cg = game:GetService("CoreGui")
-                local gui = cg:FindFirstChild("FH_AutoGrabProgress")
-                    or (Players.LocalPlayer:FindFirstChild("PlayerGui")
-                        and Players.LocalPlayer.PlayerGui:FindFirstChild("FH_AutoGrabProgress"))
-                if not gui then return end
-                for _, d in ipairs(gui:GetDescendants()) do
-                    if d:IsA("UIGradient") and d.Parent and d.Parent:IsA("Frame") then
-                        if _FH_BuildThemeSequence then
-                            d.Color = _FH_BuildThemeSequence()
-                        end
-                        local parentFrame = d.Parent
-                        parentFrame.BackgroundColor3 = _G._FH_AccentA or Color3.fromRGB(60, 210, 100)
-                    end
-                end
-
-                local frame = gui:FindFirstChildOfClass("Frame")
-                if frame then
-                    for _, d in ipairs(frame:GetDescendants()) do
-                        if d:IsA("UIStroke") then
-                            local g = d:FindFirstChildOfClass("UIGradient")
-                            if not g then
-                                g = Instance.new("UIGradient")
-                                g.Parent = d
-                                table.insert(_G._FH_ThemeStrokes, g)
-                            end
-                            if _FH_BuildThemeSequence then g.Color = _FH_BuildThemeSequence() end
-                        end
-                    end
-                end
-            end)
-        end
-        _G._FH_ThemeCallbacks = _G._FH_ThemeCallbacks or {}
-        table.insert(_G._FH_ThemeCallbacks, _fixAutoGrabBarTheme)
-        pcall(_fixAutoGrabBarTheme)
-    end
-
-    local function applyGuiState()
-        if not GUI then return end
-        if not enabled then
-
-            GUI.Enabled = true
-            restoreAllESPs()
-            showMiniPets()
-            showProgressBar()
-            return
-        end
-        local equipped = isSelectedEquipped()
-        GUI.Enabled = not equipped
-        if equipped then
-            disableAllESPs()
-            hideMiniPets()
-            hideProgressBar()
-        else
-            restoreAllESPs()
-            showMiniPets()
-            showProgressBar()
-        end
-    end
-
-    local _charConns = {}
-    local function disconnectCharConns()
-        for _, c in ipairs(_charConns) do pcall(function() c:Disconnect() end) end
-        _charConns = {}
-    end
-
-    local function hookChar(char)
-        disconnectCharConns()
-        table.insert(_charConns, char.ChildAdded:Connect(function(c)
-            if c:IsA("Tool") then task.wait(); applyGuiState() end
-        end))
-        table.insert(_charConns, char.ChildRemoved:Connect(function(c)
-            if c:IsA("Tool") then task.wait(); applyGuiState() end
-        end))
-
-        if GUI then GUI.Enabled = true end
-        restoreAllESPs()
-        showMiniPets()
-        showProgressBar()
-        task.wait(0.1)
-        applyGuiState()
-    end
-
-    local lp = Players and Players.LocalPlayer
-    if lp then
-        if lp.Character then hookChar(lp.Character) end
-        lp.CharacterAdded:Connect(hookChar)
-    end
-
-    CreateToggle(MiscTab.scroll, toggleName, "Auto-hides the UI while your selected item is equipped",
-        function(v)
-            enabled = v
-            if not v then
-                if GUI then GUI.Enabled = true end
-                restoreAllESPs()
-                showMiniPets()
-                showProgressBar()
-            end
-            applyGuiState()
-        end
-    )
-end
 
 task.spawn(function()
     pcall(function()
@@ -550,8 +112,8 @@ task.spawn(function()
         end
     end)
 end)
-task.spawn(function()
 
+task.spawn(function()
     task.wait()
     pcall(function()
         local _step = 0
@@ -571,6 +133,7 @@ task.spawn(function()
         end
     end)
 end)
+
 do
     local NetMod   = game:GetService("ReplicatedStorage"):WaitForChild("Packages"):WaitForChild("Net")
     local NetClone = require(NetMod:Clone())
@@ -598,6 +161,7 @@ do
     _FH_TRIP_U2  = "07b9cc25-2a1f-4a26-a0ec-f2fab578d8bd"
     _FH_STEAL_U1 = "cda5c764-d4e3-45c4-94e4-53a538347590"
     _FH_STEAL_U2 = "8c852fbf-d542-4ef4-aa28-612e24db8d4a"
+    
     function _FH_ResolvePromptTarget(prompt)
         if not prompt or not prompt.Parent then return nil end
         local att    = prompt.Parent
@@ -610,11 +174,13 @@ do
         if not (plot and pod) then return nil end
         return { plotName = plot.Name, pod = pod }
     end
+    
     function _FH_StartTrip(target)
         local T0 = workspace:GetServerTimeNow()
         _G._FH_LastStealStart = tick()
         return { t0 = T0, startedAt = tick(), target = target }
     end
+    
     function _FH_FinishSteal(ctx)
         if not ctx or not ctx.target then return false end
         local elapsed = tick() - ctx.startedAt
@@ -624,6 +190,7 @@ do
         pcall(function() _FH_StealRemote:FireServer(ts, _FH_STEAL_U2, ctx.target.plotName, ctx.target.pod) end)
         return true
     end
+    
     function _FH_FireStealPrompt(prompt)
         local target = _FH_ResolvePromptTarget(prompt)
         if not target then return false end
@@ -634,7 +201,6 @@ end
 
 local __stealActive_v2 = false
 _G.__stealActive = false
-
 local __stealCbCache_v2 = {}
 local __MIN_HOLD_TIME_v2       = 1.3
 local __TRIGGER_AFTER_GREEN_v2 = 0.02
@@ -721,7 +287,6 @@ local function _FH_V2FireStealPrompt(prompt, finalizeFn)
     if __resetCooldown_v2 then return false end
     local cb = __buildStealCallbacks_v2(prompt)
     if not cb then
-
         local target = _FH_ResolvePromptTarget(prompt)
         if not target then return false end
         local ctx = _FH_StartTrip(target)
@@ -763,6 +328,7 @@ end
 local _FH_SAVE_PATH = "NexusHub_Config.json"
 local configRegistry = {}
 local HttpService   = game:GetService("HttpService")
+
 local function FH_LoadConfig()
     local ok, raw = pcall(function() return readfile(_FH_SAVE_PATH) end)
     if ok and raw then
@@ -775,12 +341,12 @@ end
 local _FH_RestoreComplete = false
 local _FH_SaveDebounceToken = 0
 local _FH_SaveLastQueued = 0
+
 local function _FH_DoSaveConfig()
     pcall(function()
         for name, reg in pairs(configRegistry) do
             if reg.getState then
                 local live = reg.getState()
-
                 if not _G._FH_IsRestoring then
                     Config.toggles[name] = live
                 elseif live == true or Config.toggles[name] == nil then
@@ -804,7 +370,6 @@ local function _FH_DoSaveConfig()
             Config.sliders = Config.sliders or {}
             Config.sliders.sp_jumppower = SP.jpBox.Text
         end
-
         if _G._FH_PotionSpeedValue then
             Config.sliders = Config.sliders or {}
             Config.sliders.potion_speed = _G._FH_PotionSpeedValue
@@ -813,7 +378,6 @@ local function _FH_DoSaveConfig()
             Config.sliders = Config.sliders or {}
             Config.sliders.fps_cap = _G._FH_FpsCapValue
         end
-
         Config.mini = Config.mini or {}
         if SP  and SP.SpeedWin         then Config.mini.sp_open   = SP.SpeedWin.Visible         end
         if SS  and SS.SSWin            then Config.mini.ss_open   = SS.SSWin.Visible             end
@@ -881,11 +445,13 @@ local function _FH_DoSaveConfig()
         end)
     end)
 end
+
 local function FH_SaveConfig()
     _FH_SaveDebounceToken = _FH_SaveDebounceToken + 1
     _FH_SaveLastQueued = tick()
     _FH_DoSaveConfig()
 end
+
 task.spawn(function()
     while true do
         task.wait(4)
@@ -894,6 +460,7 @@ task.spawn(function()
         end
     end
 end)
+
 local _FH_SavedConfig = FH_LoadConfig()
 Config = {
     toggles  = (_FH_SavedConfig and _FH_SavedConfig.toggles)  or {},
@@ -918,6 +485,7 @@ local FriendsESPConnections = {}
 local V3 = { enabled = false, potionOn = false, giant = nil, potionEquipped = false }
 local FPS = { connections = {} }
 local AntiRagdoll = { connections = {}, running = false }
+
 local SS = {
     player           = nil,
     teleporting      = false,
@@ -939,6 +507,7 @@ local SS = {
     BTN       = Color3.fromRGB(24, 45, 80),
     BTN_HOVER = Color3.fromRGB(38, 70, 120),
 }
+
 local SP = {
     W = 150, H = 130,
     minimized  = false,
@@ -949,6 +518,7 @@ local SP = {
     entry      = { keyCode = nil },
     kb2Debounce = false,
 }
+
 local AB = {
     W = 155, H = 60,
     minimized  = false,
@@ -957,6 +527,7 @@ local AB = {
     panelStart = nil,
     allowState = false,
 }
+
 local FA = {}
 local FD = {}
 local QP = {}
@@ -965,6 +536,7 @@ local SVN = {}
 local STP = {}
 local QS  = {}
 local PS  = {}
+
 local UB  = {
     W = 180, H = 74,
     minimized  = false,
@@ -972,15 +544,18 @@ local UB  = {
     dragStart  = nil,
     panelStart = nil,
 }
+
 local Win, BorderFrame
 local function setGuiVisible(vis)
     Win.Visible         = vis
     BorderFrame.Visible = vis
 end
+
 local hidden    = false
 local animating = false
 local HIDE_INFO = TweenInfo.new(0.22, Enum.EasingStyle.Back, Enum.EasingDirection.In)
 local SHOW_INFO = TweenInfo.new(0.5,  Enum.EasingStyle.Back, Enum.EasingDirection.Out)
+
 local T, F, M, S
 local Tween, Corner, Stroke, Padding, Label
 local GUI, WIN_W, WIN_H
@@ -996,6 +571,7 @@ local Tabs, ActiveTab, TabSwiping, TabIndex
 local SLIDE_IN, SLIDE_OUT, ActivateTab, TAB_W, CreateTab
 local CombatTab, VisualTab, PlayerTab, MiscTab
 local TopBanner
+
 local keybindBindingTarget = nil
 local keybindEntries = {}
 local Player = Players.LocalPlayer
@@ -1003,7 +579,6 @@ local LocalPlayer = Player
 
 local antiDieConnection = nil
 local antiDieDisabled = false
-local function setupAntiDie()
-    if antiDieDisabled then return end
-    local character = Player.Character
-    if not character then return end
+
+print("Nexus Hub Carregado com sucesso! Discord: discord.gg/yVmnKrjfwp")
+warn("Tema: Azul Escuro | Bordas Animadas | Fonte Minecraft | Reset Ajustado")
